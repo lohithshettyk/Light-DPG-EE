@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF & Excel Comparison Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; color: #333; }
+        .header { background: linear-gradient(135deg, #0078D4 0%, #1084d8 100%); color: white; padding: 30px 40px; text-align: center; }
+        .header h1 { font-size: 32px; font-weight: 600; margin-bottom: 10px; }
+        .header p { font-size: 14px; opacity: 0.9; }
+        .container { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
+        .section { background: white; border-radius: 8px; padding: 30px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .section h2 { color: #0078D4; margin-bottom: 20px; font-size: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .file-input-group { display: flex; flex-direction: column; }
+        .file-input-group label { font-weight: 600; margin-bottom: 8px; font-size: 14px; }
+        .file-input-group input[type="file"] { padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; cursor: pointer; }
+        .file-input-group input[type="file"]:hover { border-color: #0078D4; }
+        .file-input-group textarea { padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-family: monospace; font-size: 12px; resize: vertical; min-height: 100px; }
+        .file-name { font-size: 12px; color: #666; margin-top: 4px; }
+        .buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; }
+        button { padding: 12px 24px; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+        .btn-primary { background: #0078D4; color: white; }
+        .btn-primary:hover:not(:disabled) { background: #005a9e; }
+        .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+        .btn-secondary { background: #f0f0f0; color: #333; border: 1px solid #d0d0d0; }
+        .btn-secondary:hover { background: #e0e0e0; }
+        .info-box { background: #e3f2fd; border: 1px solid #90caf9; border-radius: 4px; padding: 12px; margin: 15px 0; font-size: 13px; color: #1565c0; }
+        .status { padding: 12px 15px; border-radius: 4px; margin: 15px 0; display: none; }
+        .status.show { display: block; }
+        .status.info { background: #e3f2fd; border-left: 4px solid #2196F3; color: #1976D2; }
+        .status.success { background: #e8f5e9; border-left: 4px solid #4caf50; color: #2e7d32; }
+        .status.error { background: #ffebee; border-left: 4px solid #f44336; color: #c62828; }
+        .tabs { display: flex; gap: 0; border-bottom: 2px solid #e0e0e0; }
+        .tab { padding: 15px 20px; background: #f5f5f5; border: none; cursor: pointer; font-size: 14px; font-weight: 600; border-bottom: 3px solid transparent; color: #666; }
+        .tab.active { background: white; color: #0078D4; border-bottom-color: #0078D4; }
+        .tab:hover { background: #e8e8e8; }
+        .tab-content { display: none; background: white; padding: 20px; }
+        .tab-content.active { display: block; }
+        .results { display: none; }
+        .results.show { display: block; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
+        table th { background: #f5f5f5; padding: 10px; text-align: left; font-weight: 600; border-bottom: 2px solid #e0e0e0; }
+        table td { padding: 10px; border-bottom: 1px solid #e0e0e0; }
+        table tr:hover { background: #f9f9f9; }
+        .match { color: #107C10; font-weight: 600; }
+        .mismatch { color: #d13438; font-weight: 600; }
+        .highlight-row { background: #ffe6e6; }
+        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin: 20px 0; }
+        .summary-card { background: #f5f5f5; padding: 15px; border-radius: 6px; border-left: 4px solid #0078D4; text-align: center; }
+        .summary-card h3 { font-size: 11px; color: #666; margin-bottom: 8px; text-transform: uppercase; }
+        .summary-card .number { font-size: 24px; font-weight: bold; color: #0078D4; }
+        .summary-card.error { border-left-color: #d13438; }
+        .summary-card.error .number { color: #d13438; }
+        footer { text-align: center; padding: 20px; color: #999; font-size: 12px; margin-top: 40px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 PDF & Excel Comparison Tool</h1>
+        <p>Browser-based comparison - No installation needed</p>
+    </div>
+
+    <div class="container">
+        <div class="section">
+            <h2>📥 Upload Documents</h2>
+            <div class="grid">
+                <div class="file-input-group">
+                    <label for="pdf853">📄 PDF 853 (Main Drawing)</label>
+                    <input type="file" id="pdf853" accept=".pdf" />
+                    <span class="file-name" id="pdf853-name">No file selected</span>
+                </div>
+                <div class="file-input-group">
+                    <label for="pdf225">📄 PDF 225 (Reference Drawing)</label>
+                    <input type="file" id="pdf225" accept=".pdf" />
+                    <span class="file-name" id="pdf225-name">No file selected</span>
+                </div>
+            </div>
+
+            <h2 style="margin-top: 30px;">📋 Excel Data</h2>
+            <div class="info-box">
+                <strong>Upload Excel file:</strong> Select your Excel file (.XLS, .XLSX, or .CSV) with Column E (Item) and Column P (Item Text)
+            </div>
+
+            <div class="grid">
+                <div class="file-input-group">
+                    <label for="excel">📊 Excel/CSV File</label>
+                    <input type="file" id="excel" accept=".xls,.xlsx,.csv" />
+                    <span class="file-name" id="excel-name">No file selected</span>
+                </div>
+            </div>
+
+            <div class="buttons">
+                <button class="btn-primary" id="compareBtn" onclick="runComparison()">▶ Run Comparison</button>
+                <button class="btn-secondary" onclick="clearForm()">Clear All</button>
+            </div>
+
+            <div class="status" id="status"></div>
+        </div>
+
+        <div class="results" id="results">
+            <div class="section">
+                <div class="tabs">
+                    <button class="tab active" onclick="switchTab('summary')">📈 Summary</button>
+                    <button class="tab" onclick="switchTab('pdf')">📑 PDF Comparison</button>
+                    <button class="tab" onclick="switchTab('excelTab')">✓ Excel Verification</button>
+                    <button class="tab" onclick="switchTab('reference')">📋 Reference Text</button>
+                </div>
+
+                <div id="summary" class="tab-content active">
+                    <h3>Comparison Summary</h3>
+                    <div class="summary-grid">
+                        <div class="summary-card"><h3>Total</h3><div class="number" id="totalItems">0</div></div>
+                        <div class="summary-card"><h3>✓ Matched</h3><div class="number" id="matchedItems">0</div></div>
+                        <div class="summary-card error"><h3>⚠ Mismatched</h3><div class="number" id="mismatchedItems">0</div></div>
+                        <div class="summary-card error"><h3>✗ Missing</h3><div class="number" id="missingItems">0</div></div>
+                    </div>
+                </div>
+
+                <div id="pdf" class="tab-content">
+                    <h3>Cable Reference Comparison (853 vs 225)</h3>
+                    <label><input type="checkbox" id="pdfFilter" onchange="filterPDF()"> Show differences only</label>
+                    <div id="pdfResults"></div>
+                </div>
+
+                <div id="excelTab" class="tab-content">
+                    <h3>Balloon Callout Verification (PDF vs Excel)</h3>
+                    <label><input type="checkbox" id="excelFilter" onchange="filterExcel()"> Show missing only</label>
+                    <div id="excelResults"></div>
+                </div>
+
+                <div id="reference" class="tab-content">
+                    <h3>Reference Designation Verification (853 & 225 vs Excel)</h3>
+                    <label><input type="checkbox" id="refFilter" onchange="filterReference()"> Show missing only</label>
+                    <div id="referenceResults"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer><p>PDF & Excel Comparison Tool v2.0 | No External Dependencies</p></footer>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        document.getElementById('pdf853').addEventListener('change', function(e) {
+            document.getElementById('pdf853-name').textContent = e.target.files[0]?.name || 'No file selected';
+        });
+        document.getElementById('pdf225').addEventListener('change', function(e) {
+            document.getElementById('pdf225-name').textContent = e.target.files[0]?.name || 'No file selected';
+        });
+        document.getElementById('excel').addEventListener('change', function(e) {
+            document.getElementById('excel-name').textContent = e.target.files[0]?.name || 'No file selected';
+        });
+
+        function showStatus(msg, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = msg;
+            status.className = 'status show ' + type;
+        }
+
+        async function extractPDFText(file) {
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdfDoc = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+                let text = '';
+                for (let i = 1; i <= pdfDoc.numPages; i++) {
+                    const page = await pdfDoc.getPage(i);
+                    const content = await page.getTextContent();
+                    text += content.items.map(item => item.str).join(' ') + '\n';
+                }
+                return text;
+            } catch (error) {
+                throw new Error('Failed to read PDF: ' + error.message);
+            }
+        }
+
+        function extractCableReferences(text) {
+            // Extract references starting with one or more "A" that MUST contain numbers
+            // Can include letters, numbers, underscores, dots
+            // Examples: A36p41, A40J21, A400P400, A200J2, A200P1_J1, A1P1.J1, A2J2_P400, AA600J3, AA200P1_T30000
+            // Will NOT match: ABC, ABCD (no numbers)
+            const pattern = /\bA+[A-Z0-9._]*\d[A-Z0-9._]*\b/gi;
+            const matches = text.match(pattern) || [];
+            // Remove duplicates and sort
+            const unique = [...new Set(matches.map(m => m.toUpperCase()))];
+            return unique.sort();
+        }
+
+        function extractCalloutNumbers(text) {
+            // Extract numbers that could be callout indicators
+            // Look for numbers that appear standalone or with minimal context
+            const numbers = new Set();
+
+            // Match 1-5 digit numbers that appear as potential callouts
+            // This includes: 1, 2, 3... 21, 7000, 7001, etc.
+            const pattern = /\b(\d{1,5})\b/g;
+            let match;
+
+            while ((match = pattern.exec(text)) !== null) {
+                const num = match[1];
+                // Filter out numbers that are likely not callouts
+                // Keep: 1-99999 (typical callout range)
+                // Avoid: year-like numbers (1000-2999), very large numbers
+                const numVal = parseInt(num);
+
+                // Accept numbers 1-9999 (typical callout range)
+                if (numVal >= 1 && numVal <= 9999) {
+                    numbers.add(num);
+                }
+            }
+
+            return Array.from(numbers).sort((a, b) => parseInt(a) - parseInt(b));
+        }
+
+        function extractReferenceDesignations(text) {
+            // Extract reference designations (same pattern as cable references)
+            const pattern = /\bA+[A-Z0-9._]*\d[A-Z0-9._]*\b/gi;
+            const matches = text.match(pattern) || [];
+            const unique = [...new Set(matches.map(m => m.toUpperCase()))];
+            return unique.sort();
+        }
+
+        async function extractExcelRefText() {
+            const excelFile = document.getElementById('excel').files[0];
+            if (!excelFile) return [];
+
+            try {
+                const fileName = excelFile.name.toLowerCase();
+                if (fileName.endsWith('.csv')) {
+                    const text = await excelFile.text();
+                    const lines = text.split('\n');
+                    const items = [];
+                    lines.forEach((line, index) => {
+                        if (index > 0 && line.trim()) {
+                            const cols = line.split(',');
+                            if (cols.length > 15 && cols[15].trim()) {
+                                items.push(cols[15].trim());
+                            }
+                        }
+                    });
+                    return items;
+                } else if (fileName.endsWith('.xls') || fileName.endsWith('.xlsx')) {
+                    const arrayBuffer = await excelFile.arrayBuffer();
+                    const workbook = XLSX.read(new Uint8Array(arrayBuffer));
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    const items = [];
+                    data.forEach((row, index) => {
+                        if (row && row.length > 15) {
+                            const val = row[15];
+                            if (val !== null && val !== undefined && val !== '') {
+                                items.push(String(val).trim());
+                            }
+                        }
+                    });
+                    return items;
+                }
+            } catch (error) {
+                console.error('Error extracting reference text from Excel:', error);
+            }
+            return [];
+        }
+
+        async function extractExcelData() {
+            const excelFile = document.getElementById('excel').files[0];
+            if (!excelFile) return [];
+
+            try {
+                const fileName = excelFile.name.toLowerCase();
+                if (fileName.endsWith('.csv')) {
+                    const text = await excelFile.text();
+                    const lines = text.split('\n');
+                    const items = [];
+                    lines.forEach((line, index) => {
+                        if (index > 0 && line.trim()) {
+                            const cols = line.split(',');
+                            if (cols.length > 4 && cols[4].trim()) {
+                                items.push(cols[4].trim());
+                            }
+                        }
+                    });
+                    return items;
+                } else if (fileName.endsWith('.xls') || fileName.endsWith('.xlsx')) {
+                    const arrayBuffer = await excelFile.arrayBuffer();
+                    const workbook = XLSX.read(new Uint8Array(arrayBuffer));
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    const items = [];
+                    data.forEach((row, index) => {
+                        if (index > 0 && row && row.length > 4) {
+                            const val = row[4];
+                            if (val !== null && val !== undefined && val !== '') {
+                                items.push(String(val).trim());
+                            }
+                        }
+                    });
+                    return items;
+                }
+            } catch (error) {
+                console.error('Error extracting BOM data from Excel:', error);
+            }
+            return [];
+        }
+
+        async function runComparison() {
+            const pdf853File = document.getElementById('pdf853').files[0];
+            const pdf225File = document.getElementById('pdf225').files[0];
+
+            if (!pdf853File || !pdf225File) {
+                showStatus('❌ Please select both PDF files', 'error');
+                return;
+            }
+
+            const excelFile = document.getElementById('excel').files[0];
+            if (!excelFile) {
+                showStatus('❌ Please select an Excel file', 'error');
+                return;
+            }
+
+            showStatus('⏳ Processing files...', 'info');
+            document.getElementById('compareBtn').disabled = true;
+
+            try {
+                showStatus('⏳ Reading PDF 853...', 'info');
+                const text853 = await extractPDFText(pdf853File);
+                console.log('PDF 853 text length:', text853.length);
+                console.log('PDF 853 text preview:', text853.substring(0, 500));
+
+                showStatus('⏳ Reading PDF 225...', 'info');
+                const text225 = await extractPDFText(pdf225File);
+
+                showStatus('⏳ Reading Excel data...', 'info');
+                const excelItems = await extractExcelData();
+                const excelRefItems = await extractExcelRefText();
+
+                console.log('Excel BOM items (Column E):', excelItems);
+                console.log('Excel Reference items (Column P):', excelRefItems);
+
+                showStatus('⏳ Comparing...', 'info');
+
+                const refs853 = extractCableReferences(text853);
+                const refs225 = extractCableReferences(text225);
+                const callouts = extractCalloutNumbers(text853);
+                const refDes853 = extractReferenceDesignations(text853);
+                const refDes225 = extractReferenceDesignations(text225);
+
+                console.log('Callouts from PDF 853:', callouts);
+                console.log('Numbers found in text:', text853.match(/\b\d{1,5}\b/g));
+                console.log('Cable references from 853:', refs853);
+                console.log('Cable references from 225:', refs225);
+
+                const pdfResults = [];
+                const allRefs = new Set([...refs853, ...refs225]);
+                allRefs.forEach(ref => {
+                    const in853 = refs853.includes(ref);
+                    const in225 = refs225.includes(ref);
+                    pdfResults.push({
+                        ref,
+                        in853: in853 ? ref : 'N/A',
+                        in225: in225 ? ref : 'N/A',
+                        status: (in853 && in225) ? 'MATCH' : 'MISMATCH',
+                        highlighted: !(in853 && in225)
+                    });
+                });
+
+                // Filter callouts to only include numbers that are in Excel (valid callouts)
+                const validCallouts = callouts.filter(c =>
+                    excelItems.some(item => String(item).trim() === c)
+                );
+
+                const excelResults = [];
+                validCallouts.forEach(callout => {
+                    excelResults.push({
+                        callout,
+                        in853: callout,
+                        inExcel: callout,
+                        status: 'MATCH',
+                        highlighted: false
+                    });
+                });
+
+                // Add missing callouts from Excel
+                excelItems.forEach(item => {
+                    if (item !== 'Item' && !validCallouts.includes(String(item).trim())) {
+                        excelResults.push({
+                            callout: item,
+                            in853: 'MISSING',
+                            inExcel: item,
+                            status: 'MISSING',
+                            highlighted: true
+                        });
+                    }
+                });
+
+                const refResults = [];
+                const allRefDes = new Set([...refDes853, ...refDes225]);
+                allRefDes.forEach(ref => {
+                    const in853 = refDes853.includes(ref);
+                    const in225 = refDes225.includes(ref);
+                    const inExcel = excelRefItems.some(item => String(item).trim().toUpperCase() === ref);
+                    refResults.push({
+                        ref,
+                        in853: in853 ? ref : 'N/A',
+                        in225: in225 ? ref : 'N/A',
+                        inExcel: inExcel ? ref : 'MISSING',
+                        status: (in853 || in225) && inExcel ? 'MATCH' : 'MISSING',
+                        highlighted: !((in853 || in225) && inExcel)
+                    });
+                });
+
+                displayResults(pdfResults, excelResults, refResults);
+                showStatus('✅ Comparison complete!', 'success');
+            } catch (error) {
+                showStatus('❌ Error: ' + error.message, 'error');
+                console.error(error);
+            } finally {
+                document.getElementById('compareBtn').disabled = false;
+            }
+        }
+
+        function displayResults(pdfResults, excelResults, refResults) {
+            console.log('displayResults called with:', {pdfResults, excelResults, refResults});
+
+            const totalMatched = pdfResults.filter(r => r.status === 'MATCH').length +
+                               excelResults.filter(r => r.status === 'MATCH').length +
+                               refResults.filter(r => r.status === 'MATCH').length;
+
+            document.getElementById('totalItems').textContent = pdfResults.length + excelResults.length + refResults.length;
+            document.getElementById('matchedItems').textContent = totalMatched;
+            document.getElementById('mismatchedItems').textContent = pdfResults.filter(r => r.status === 'MISMATCH').length;
+            document.getElementById('missingItems').textContent = excelResults.filter(r => r.status === 'MISSING').length + refResults.filter(r => r.status === 'MISSING').length;
+
+            let pdfHTML = '<table><thead><tr><th>Cable Ref</th><th>PDF 853</th><th>PDF 225</th><th>Status</th></tr></thead><tbody>';
+            pdfResults.forEach(r => {
+                const rowClass = r.highlighted ? 'highlight-row' : '';
+                const statusClass = r.status === 'MATCH' ? 'match' : 'mismatch';
+                pdfHTML += `<tr class="${rowClass}"><td><strong>${r.ref}</strong></td><td>${r.in853}</td><td>${r.in225}</td><td><span class="${statusClass}">${r.status === 'MATCH' ? '✓ MATCH' : '⚠ MISMATCH'}</span></td></tr>`;
+            });
+            pdfHTML += '</tbody></table>';
+            document.getElementById('pdfResults').innerHTML = pdfHTML;
+            console.log('PDF results rendered');
+
+            let excelHTML = '<h3>Balloon Callout Verification (PDF vs Excel)</h3>';
+            excelHTML += '<label><input type="checkbox" id="excelFilter" onchange="filterExcel()"> Show missing only</label>';
+            excelHTML += '<h4 style="color: #333; margin: 20px 0 10px 0;">Results (' + excelResults.length + ' items)</h4>';
+            excelHTML += '<table style="width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px;"><thead><tr style="background: #f5f5f5;"><th style="padding: 10px; text-align: left; font-weight: 600; border-bottom: 2px solid #e0e0e0;">Callout #</th><th style="padding: 10px; text-align: left; font-weight: 600; border-bottom: 2px solid #e0e0e0;">In PDF 853</th><th style="padding: 10px; text-align: left; font-weight: 600; border-bottom: 2px solid #e0e0e0;">In Excel</th><th style="padding: 10px; text-align: left; font-weight: 600; border-bottom: 2px solid #e0e0e0;">Status</th></tr></thead><tbody>';
+            excelResults.forEach(r => {
+                const bgColor = r.highlighted ? 'background: #ffe6e6;' : '';
+                const statusColor = r.status === 'MATCH' ? 'color: #107C10; font-weight: 600;' : 'color: #d13438; font-weight: 600;';
+                excelHTML += `<tr style="${bgColor}"><td style="padding: 10px; border-bottom: 1px solid #e0e0e0;"><strong>${r.callout}</strong></td><td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">${r.in853}</td><td style="padding: 10px; border-bottom: 1px solid #e0e0e0;">${r.inExcel}</td><td style="padding: 10px; border-bottom: 1px solid #e0e0e0; ${statusColor}">${r.status === 'MATCH' ? '✓ MATCH' : '✗ MISSING'}</td></tr>`;
+            });
+            excelHTML += '</tbody></table>';
+
+            const excelTab = document.getElementById('excelTab');
+            console.log('Excel tab element:', excelTab);
+            console.log('Excel tab HTML before:', excelTab.innerHTML.substring(0, 50));
+
+            excelTab.innerHTML = excelHTML;
+
+            console.log('Excel tab HTML after:', excelTab.innerHTML.substring(0, 100));
+            console.log('Excel tab display style:', window.getComputedStyle(excelTab).display);
+            console.log('Excel tab visible:', excelTab.offsetHeight);
+
+            let refHTML = '<h4 style="color: #333; margin: 10px 0; display: block !important;">Comparison Results (' + refResults.length + ' items)</h4>';
+            refHTML += '<div style="display: block !important; width: 100%; overflow: visible;"><table style="display: table; width: 100%;"><thead><tr><th>Reference</th><th>PDF 853</th><th>PDF 225</th><th>In Excel</th><th>Status</th></tr></thead><tbody>';
+            refResults.forEach(r => {
+                const rowClass = r.highlighted ? 'highlight-row' : '';
+                const statusClass = r.status === 'MATCH' ? 'match' : 'mismatch';
+                refHTML += `<tr class="${rowClass}"><td><strong>${r.ref}</strong></td><td>${r.in853}</td><td>${r.in225}</td><td>${r.inExcel}</td><td><span class="${statusClass}">${r.status === 'MATCH' ? '✓ MATCH' : '✗ MISSING'}</span></td></tr>`;
+            });
+            refHTML += '</tbody></table></div>';
+            document.getElementById('referenceResults').innerHTML = refHTML;
+            console.log('Reference results rendered');
+
+            document.getElementById('results').classList.add('show');
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function filterPDF() {
+            const checked = document.getElementById('pdfFilter').checked;
+            const rows = document.querySelectorAll('#pdfResults table tbody tr');
+            rows.forEach(row => {
+                row.style.display = checked && !row.classList.contains('highlight-row') ? 'none' : '';
+            });
+        }
+
+        function filterExcel() {
+            const checked = document.getElementById('excelFilter').checked;
+            const rows = document.querySelectorAll('#excelResults table tbody tr');
+            rows.forEach(row => {
+                row.style.display = checked && !row.classList.contains('highlight-row') ? 'none' : '';
+            });
+        }
+
+        function filterReference() {
+            const checked = document.getElementById('refFilter').checked;
+            const rows = document.querySelectorAll('#referenceResults table tbody tr');
+            rows.forEach(row => {
+                row.style.display = checked && !row.classList.contains('highlight-row') ? 'none' : '';
+            });
+        }
+
+        function clearForm() {
+            document.getElementById('pdf853').value = '';
+            document.getElementById('pdf225').value = '';
+            document.getElementById('excel').value = '';
+            document.getElementById('pdf853-name').textContent = 'No file selected';
+            document.getElementById('pdf225-name').textContent = 'No file selected';
+            document.getElementById('excel-name').textContent = 'No file selected';
+            document.getElementById('results').classList.remove('show');
+            document.getElementById('status').classList.remove('show');
+        }
+    </script>
+</body>
+</html>
